@@ -15,15 +15,6 @@ delegated_credentials = credentials.with_subject('summary@month2month.com')
 # Build the service object for the gmail API using the authorized credentials
 gmail_service = build('gmail', 'v1', credentials=delegated_credentials)
 
-def trim_reply_chain(message_content):
-    # Pattern now strictly matches "On" with a capital "O" and "wrote:" with a lowercase "w"
-    pattern = re.compile(r"On.*?<.*?@.*?>\s*wrote:", re.DOTALL)
-    match = pattern.search(message_content)
-    if match:
-        # Return everything up to the start of the matched pattern
-        return message_content[:match.start()].strip()
-    return message_content  # Return original content if no pattern matched
-
 # Regex function to extract just the email address from the To: field
 def extract_email_address(email_string):
     pattern = re.compile(r"<([^>]+)>")
@@ -63,7 +54,6 @@ def fetch_categorize_concatenate(service, query):
                     body = base64.urlsafe_b64decode(payload['body']['data']).decode("utf-8")
 
             # Concatenate the message with the rest
-            body = trim_reply_chain(body)
             concatenated_messages += f"'from: {from_header}: {body}';"
 
         # Determine the group email based on the thread
