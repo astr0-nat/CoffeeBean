@@ -6,6 +6,24 @@ import re
 import os
 from openai import OpenAI
 
+class EmailThread:
+    def __init__(self, thread_id):
+        self.thread_id = thread_id
+        self.content = ""
+        self.groups = set()
+
+    def add_content(self, new_content):
+        if self.content:
+            self.content += "\n"  # Ensure separation between messages
+        self.content += new_content
+
+    def add_group(self, group_email):
+        self.groups.add(group_email)
+
+    def summarize(self):
+        # Placeholder for method to request GPT summary; implement as needed
+        pass
+
 # Load environment variables
 load_dotenv()
 
