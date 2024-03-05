@@ -142,8 +142,6 @@ def summarize_with_gpt(thread_content):
     messages=[{"role": "user", "content": f"{prompt}:\n\n{thread_content}"}])
     return response.choices[0].message.content.strip()
 
-# Dictionary to store the summarization results
-summary_responses = {}
 
 # Iterate through grouped_messages and process each thread
 for group_email, thread_content in grouped_messages.items():
