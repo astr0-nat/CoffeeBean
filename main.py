@@ -11,6 +11,7 @@ class EmailThread:
         self.thread_id = thread_id
         self.content = ""
         self.groups = set()
+        self.summary = ""
 
     def add_content(self, new_content, date_header, from_email):
         self.content += f"\nDate: {date_header}\nFrom: {from_email}\n{new_content}"
@@ -18,7 +19,10 @@ class EmailThread:
     def add_group(self, group_email):
         self.groups.add(group_email)
 
-# Load environment variables
+    def set_summary(self, summary):
+        self.summary = summary
+
+    # Load environment variables
 load_dotenv()
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -62,12 +66,16 @@ def extract_email_address(email_string):
     return email_string  # Return the original string if no match is found
 
 
-def fetch_categorize_concatenate(service, query):
+def process_threads(service, query, all_company_google_groups):
     threads = service.users().threads().list(userId='me', q=query).execute().get('threads', [])
-    grouped_messages = {}
+    threads_info = {}  # This will store thread_id: EmailThread object
+
     for thread in threads:
-        t_data = service.users().threads().get(userId='me', id=thread['id'], format='full').execute()
-        concatenated_messages = ""
+        thread_id = thread['id']
+        email_thread = EmailThread(thread_id=thread_id)
+
+        t_data = service.users().threads().get(userId='me', id=thread_id, format='full').execute()
+
         for message in t_data['messages']:
             payload = message['payload']
             headers = payload.get('headers', [])
@@ -75,24 +83,30 @@ def fetch_categorize_concatenate(service, query):
             date_header = next((header['value'] for header in headers if header['name'] == 'Date'), None)
             body_text = get_text_from_payload(payload)
 
-            # Extract the clean email address from the From header
             from_email = extract_email_address(from_header)
 
-            # Prepend the date and time to each message's content
-            message_content = f' """ Date: {date_header}\n from: {from_email}: {body_text}""" '
-            concatenated_messages += message_content
+            # Adding content, including date and sender
+            email_thread.add_content(body_text, date_header, from_email)
 
-        # Extract the clean email address from the To header for the group email
-        to_header = next((header['value'] for header in message['payload']['headers'] if header['name'] == 'To'), None)
-        clean_email_address = extract_email_address(to_header)
+        # Get 'To' and 'Cc' from the first message's headers
+        if t_data['messages']:
+            headers = t_data['messages'][0]['payload'].get('headers', [])
+            to_header = next((header['value'] for header in headers if header['name'] == 'To'), "")
+            cc_header = next((header['value'] for header in headers if header['name'] == 'Cc'), "")
 
-        # Append or create new entry in the dictionary for this group email
-        if clean_email_address not in grouped_messages:
-            grouped_messages[clean_email_address] = concatenated_messages
-        else:
-            grouped_messages[clean_email_address] += concatenated_messages
+            # Extract email addresses and filter by all_company_google_groups
+            all_recipients = set(
+                extract_email_address(email) for email in to_header.split(',') + cc_header.split(',') if email.strip())
+            group_recipients = all_recipients.intersection(all_company_google_groups)
 
-    return grouped_messages
+            # Add valid group emails to the EmailThread object
+            for group_email in group_recipients:
+                email_thread.add_group(group_email)
+
+        # Store using the thread's ID
+        threads_info[thread_id] = email_thread
+
+    return threads_info
 
 
 # Define your query, for example, messages from the last 24 hours
