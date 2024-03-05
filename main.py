@@ -12,17 +12,11 @@ class EmailThread:
         self.content = ""
         self.groups = set()
 
-    def add_content(self, new_content):
-        if self.content:
-            self.content += "\n"  # Ensure separation between messages
-        self.content += new_content
+    def add_content(self, new_content, date_header, from_email):
+        self.content += f"\nDate: {date_header}\nFrom: {from_email}\n{new_content}"
 
     def add_group(self, group_email):
         self.groups.add(group_email)
-
-    def summarize(self):
-        # Placeholder for method to request GPT summary; implement as needed
-        pass
 
 # Load environment variables
 load_dotenv()
