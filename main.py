@@ -89,13 +89,6 @@ query = 'newer_than:1d'
 # Fetch, categorize, and concatenate messages
 grouped_messages = fetch_categorize_concatenate(gmail_service, query)
 
-
-
-# Load environment variables
-load_dotenv()
-
-# Set the OpenAI API key
-
 prompt = ("Could you analyze and condense the key information from a specific email conversation "  +
           "for me? I'm interested in understanding the core topics discussed, including the exact"+
           " dates of the correspondence, the individuals involved, and a concise summary of the "+
