@@ -24,17 +24,12 @@ class EmailThread:
 
     # Load environment variables
 load_dotenv()
+MODEL="gpt-4"
+SCOPES = os.getenv("SCOPES").split(',')
+
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-MODEL="gpt-4"
-SERVICE_ACCOUNT_FILE = "./m2m_digest_service_key.json"
-SCOPES = ['https://www.googleapis.com/auth/gmail.send',
-          'https://www.googleapis.com/auth/gmail.readonly',
-          'https://www.googleapis.com/auth/admin.directory.group.readonly',
-          'https://www.googleapis.com/auth/admin.directory.group']
-
-credentials = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+credentials = service_account.Credentials.from_service_account_file(os.getenv("SERVICE_ACCOUNT_FILE"), scopes=SCOPES)
 delegated_credentials = credentials.with_subject('summary@month2month.com')
 
 # Build the service object for the gmail API using the authorized credentials
@@ -59,11 +54,14 @@ def get_text_from_payload(payload):
 
 # Regex function to extract just the email address from the To: field
 def extract_email_address(email_string):
-    pattern = re.compile(r"<([^>]+)>")
-    match = pattern.search(email_string)
+    """Extracts and cleans the email address by stripping whitespace and angle brackets."""
+    email_string = email_string.strip()
+    # Remove angle brackets if present
+    match = re.search(r'<([^>]+)>', email_string)
     if match:
-        return match.group(1)  # Return the first capturing group, which is the email address
-    return email_string  # Return the original string if no match is found
+        return match.group(1)
+    return email_string
+
 
 
 def process_threads(service, query, all_company_google_groups):
@@ -111,9 +109,10 @@ def process_threads(service, query, all_company_google_groups):
 
 # Define your query, for example, messages from the last 24 hours
 query = 'newer_than:1d'
+ALL_COMPANY_GOOGLE_GROUPS = set(email.strip() for email in os.getenv("ALL_COMPANY_GOOGLE_GROUPS").split(','))
 
-# Fetch, categorize, and concatenate messages
-grouped_messages = fetch_categorize_concatenate(gmail_service, query)
+# Fetch, categorize, and concatenate today's emails
+todays_digest = process_threads(gmail_service, query, ALL_COMPANY_GOOGLE_GROUPS)
 
 prompt = ("Could you analyze and condense the key information from a specific email conversation "  +
           "for me? I'm interested in understanding the core topics discussed, including the exact"+
@@ -143,10 +142,10 @@ def summarize_with_gpt(thread_content):
     return response.choices[0].message.content.strip()
 
 
-# Iterate through grouped_messages and process each thread
-for group_email, thread_content in grouped_messages.items():
-    summary = summarize_with_gpt(thread_content)
-    summary_responses[group_email] = summary
+# Iterate through each EmailThread in today's digest and process each summary
+for thread_id, email_thread in todays_digest.items():
+    summary = summarize_with_gpt(email_thread.content)
+    email_thread.set_summary(summary)
 
 # At this point, summary_responses contains the group email as keys and the GPT-generated summaries as values
 
@@ -156,11 +155,19 @@ for group_email, thread_content in grouped_messages.items():
 #     print("------------------------------------------------\n")
 
 
-print("\n\n\n\n------------------------------------------------\n")
-print("AND NOW THE SUMMARIES: \n")
-for group_email, summary in summary_responses.items():
-    print(f"Group Email: {group_email}\nSummary:\n{summary}\n")
-    print("------------------------------------------------\n")
+
+
+# print("\n\n\n\n------------------------------------------------\n")
+# print("AND NOW THE SUMMARIES: \n")
+# for thread_id, email_thread in todays_digest.items():
+#     print(f"Thread ID: {thread_id}\n")
+#     print("Summary: \n")
+#     print(email_thread.summary)
+#     print("\nAssociated Group Emails: \n")
+#     for group_email in email_thread.groups:
+#         print(group_email + "\n")
+#     print("-" * 50)  # Just a separator for readability
+
 
 
 
