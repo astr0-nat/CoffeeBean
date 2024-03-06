@@ -59,14 +59,14 @@ def extract_email_address(email_string):
     # Remove angle brackets if present
     match = re.search(r'<([^>]+)>', email_string)
     if match:
-        return match.group(1)
-    return email_string
+        return match.group(1).lower()
+    return email_string.lower()
 
 
 
 def process_threads(service, query, all_company_google_groups):
     threads = service.users().threads().list(userId='me', q=query).execute().get('threads', [])
-    threads_info = {}  # This will store thread_id: EmailThread object
+    threads_info = {}  # Dictionary to store thread_id: EmailThread object
 
     for thread in threads:
         thread_id = thread['id']
@@ -82,29 +82,29 @@ def process_threads(service, query, all_company_google_groups):
             body_text = get_text_from_payload(payload)
 
             from_email = extract_email_address(from_header)
-
-            # Adding content, including date and sender
             email_thread.add_content(body_text, date_header, from_email)
 
-        # Get 'To' and 'Cc' from the first message's headers
         if t_data['messages']:
             headers = t_data['messages'][0]['payload'].get('headers', [])
             to_header = next((header['value'] for header in headers if header['name'] == 'To'), "")
             cc_header = next((header['value'] for header in headers if header['name'] == 'Cc'), "")
 
-            # Extract email addresses and filter by all_company_google_groups
-            all_recipients = set(
-                extract_email_address(email) for email in to_header.split(',') + cc_header.split(',') if email.strip())
-            group_recipients = all_recipients.intersection(all_company_google_groups)
+            all_recipients = {extract_email_address(email) for email in to_header.split(',') + cc_header.split(',')}
 
-            # Add valid group emails to the EmailThread object
+            # debugging missing associated group emails :
+            print("All Recipients:", all_recipients)
+            print("Company Groups:", all_company_google_groups)
+            # keep this group_recipients after debug
+            group_recipients = all_recipients.intersection(all_company_google_groups)
+            # delet this after debug
+            print("Group Recipients:", group_recipients)
             for group_email in group_recipients:
                 email_thread.add_group(group_email)
 
-        # Store using the thread's ID
         threads_info[thread_id] = email_thread
 
     return threads_info
+
 
 
 # Define your query, for example, messages from the last 24 hours
@@ -157,16 +157,16 @@ for thread_id, email_thread in todays_digest.items():
 
 
 
-# print("\n\n\n\n------------------------------------------------\n")
-# print("AND NOW THE SUMMARIES: \n")
-# for thread_id, email_thread in todays_digest.items():
-#     print(f"Thread ID: {thread_id}\n")
-#     print("Summary: \n")
-#     print(email_thread.summary)
-#     print("\nAssociated Group Emails: \n")
-#     for group_email in email_thread.groups:
-#         print(group_email + "\n")
-#     print("-" * 50)  # Just a separator for readability
+print("\n\n\n\n------------------------------------------------\n")
+print("AND NOW THE SUMMARIES: \n")
+for thread_id, email_thread in todays_digest.items():
+    print(f"Thread ID: {thread_id}\n")
+    print("Summary: \n")
+    print(email_thread.summary)
+    print("\nAssociated Group Emails: \n")
+    for group_email in email_thread.groups:
+        print(group_email + "\n")
+    print("-" * 50)  # Just a separator for readability
 
 
 
