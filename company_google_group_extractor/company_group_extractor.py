@@ -49,10 +49,11 @@ def extract_email_addresses_from_file(file_path):
     # Convert the list of email addresses to a set to remove duplicates
     unique_email_addresses = set(email_addresses)
 
-    # Format the set of unique email addresses into the requested string format
-    return "{{{}}}".format(", ".join(f'"{email}"' for email in unique_email_addresses))
+    # Join the unique email addresses into a comma-separated string
+    comma_separated_emails = ', '.join(unique_email_addresses)
+
+    return comma_separated_emails
 
 
-# Example usage (adjust the path as needed)
-file_path = "input_text.txt"
+file_path = "text_from_all_groups_website.txt"
 print(extract_email_addresses_from_file(file_path))
