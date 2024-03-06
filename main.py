@@ -106,7 +106,6 @@ def process_threads(service, query, all_company_google_groups):
     return threads_info
 
 
-
 # Define your query, for example, messages from the last 24 hours
 query = 'newer_than:1d'
 ALL_COMPANY_GOOGLE_GROUPS = set(email.strip() for email in os.getenv("ALL_COMPANY_GOOGLE_GROUPS").split(','))
