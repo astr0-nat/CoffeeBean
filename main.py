@@ -5,6 +5,11 @@ import base64
 import re
 import os
 from openai import OpenAI
+import redis
+
+# Connect Redis Database to Localhost
+db = redis.Redis(host='localhost', port=6379, decode_responses=True)
+
 
 class EmailThread:
     def __init__(self, thread_id):
