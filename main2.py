@@ -13,9 +13,19 @@ class SummaryGenerator:
         self.openai_client = openai_client
         self.summary_prompt = None
 
+    def set_prompt(self, file_path):
+        try:
+            with open(file_path, 'r', encoding='utf-8') as file:
+                prompt = file.read()
+            self.summary_prompt = prompt
+        except FileNotFoundError:
+            print(f"Error: The file {file_path} was not found.")
+            return None
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            return None
     def generate_summary(self, content):
         # Call the OpenAI API with the content to generate a summary
-        # Simplified for illustration
         summary = self.openai_client.chat.completions.create(
             model="gpt-4",
             messages=[{"role": "user", "content": f"{self.summary_prompt}:\n\n{content}"}])
@@ -38,24 +48,10 @@ class ThreadManager:
 
 
 class ThreadProcessor:
-    def __init__(self, gmail_service, openai_client, redis_db):
+    def __init__(self, gmail_service, redis_db):
         self.gmail_service = gmail_service
-        self.openai_client = openai_client
         self.redis_db = redis_db
         self.expiration_time = 7200  # 2 hours
-        self.summary_prompt = None
-
-    def set_prompt(self, file_path):
-        try:
-            with open(file_path, 'r', encoding='utf-8') as file:
-                prompt = file.read()
-            self.summary_prompt = prompt
-        except FileNotFoundError:
-            print(f"Error: The file {file_path} was not found.")
-            return None
-        except Exception as e:
-            print(f"An error occurred: {e}")
-            return None
 
     def _decode_base64_url(self, data):
         padding_factor = (4 - len(data) % 4) % 4
@@ -122,7 +118,7 @@ class ThreadProcessor:
             return summary
 
         # Summarize using OpenAI if not already summarized
-        summary = summary_generator(thread_manager.content)
+        summary = summary_generator.generate_summary(thread_manager.content)
         thread_manager.set_summary(summary)
 
         # Store in Redis
@@ -163,11 +159,13 @@ def main():
     #remove
     delete_all_entries(redis_db)
 
-    thread_processor = ThreadProcessor(gmail_service, openai_client, redis_db)
-    thread_processor.set_prompt(thread_summary_prompt_file_path)
+    thread_processor = ThreadProcessor(gmail_service, redis_db)
+    summary_generator = SummaryGenerator(openai_client)
+
+    summary_generator.set_prompt(thread_summary_prompt_file_path)
     thread_managers = thread_processor.fetch_threads(query, ALL_COMPANY_GOOGLE_GROUPS)
     for thread_manager in thread_managers.values():
-        thread_processor.summarize_thread(thread_manager)
+        thread_processor.summarize_thread(thread_manager, summary_generator)
 
     # For testing
     print_all_summaries(redis_db)
