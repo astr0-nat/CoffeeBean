@@ -1,21 +1,19 @@
 import re
+import pickle
 
 
-def extract_email_addresses_from_file(file_path):
+def extract_email_addresses_from_file(source_file, dest_file):
     """
     Extract unique Google group email addresses from a text file.
 
-    Reads a provided text file, identifies all unique email addresses within, and formats them into a
-    string representation of a set, with each email address explicitly placed in double quotes and
-    separated by commas.
+    Reads a provided text file, identifies all unique email addresses within, and outputs a pickle file of
+    a Python set of these unique email addresses.
 
     Parameters:
-        file_path (str): The path to the text file containing the input text.
+        source_file (str): The path to the text file containing the input text.
+        dest_file (str): The path to the output set pickle file.
         This file is ./text_from_all_groups_website.txt which is all the text copied and pasted
-        from https://groups.google.com/all-groups.
-
-    Returns:
-        str: A string representation of a set containing the unique company Google group email addresses extracted from the text.
+        from https://groups.google.com/my-groups.
 
     Example:
         >>> extract_email_addresses_from_file("text_from_all_groups_website.txt")
@@ -26,10 +24,13 @@ def extract_email_addresses_from_file(file_path):
         provide an easy way to keep the PyGroupDigest updated with any new Group additions.
 
     Usage:
-        If ever a new Google Group is added within the company, simply add it to the ./text_from_all_groups_website.txt text file within this directory.
+        When a new Google Group needs to be summarizes, summary@month2month.com will first be added as a group member. This will be refelected in
+        the /my-groups page of the Google Groups website for user sumary@month2month.com.
+
+        If ever summary@gmail.com is added to a new Google Group, simply add it to the ./text_from_all_groups_website.txt text file within this directory.
 
         In the event you are unsure which groups are new or not, simply delete all the text within the ./text_from_all_groups_website.txt text file,
-        navigate to the https://groups.google.com/all-groups website, select all the text available, while making sure to include all email addresses,
+        navigate to the https://groups.google.com/my-groups website, select all the text available, while making sure to include all email addresses,
         and paste it into the ./text_from_all_groups_website.txt text file within this directory. Navigate to any additional pages on the Groups website
         if necessary and continue to copy and paste that text to the same text file.
 
@@ -37,7 +38,7 @@ def extract_email_addresses_from_file(file_path):
         file in ithe PyGroupDigest directory
 
         """
-    with open(file_path, 'r') as file:
+    with open(source_file, 'r') as file:
         text = file.read()
 
     # Regular expression to match email addresses
@@ -49,11 +50,10 @@ def extract_email_addresses_from_file(file_path):
     # Convert the list of email addresses to a set to remove duplicates
     unique_email_addresses = set(email_addresses)
 
-    # Join the unique email addresses into a comma-separated string
-    comma_separated_emails = ', '.join(unique_email_addresses)
-
-    return comma_separated_emails
+    with open(dest_file, 'wb') as dest_file:
+        pickle.dump(unique_email_addresses, dest_file)
 
 
-file_path = "text_from_all_groups_website.txt"
-print(extract_email_addresses_from_file(file_path))
+source_file_path = "text_from_all_groups_website.txt"
+dest_file_path = "google_groups_set.pkl"
+extract_email_addresses_from_file(source_file_path, dest_file_path)
