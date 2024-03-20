@@ -156,6 +156,7 @@ class ThreadProcessor:
                     header_value = next(
                         (header['value'] for header in t_data['messages'][0]['payload'].get('headers', []) if
                          header['name'] == header_name), "")
+                    print(f"header_name: {header_name}, header_value: {header_value}")
                     all_recipients.update({self._extract_email_address(email) for email in header_value.split(',')})
 
                 group_recipients = all_recipients.intersection(google_groups)
@@ -298,7 +299,7 @@ def main():
                                                                         scopes=SCOPES)
     delegated_credentials = credentials.with_subject('summary@month2month.com')
     gmail_service = build('gmail', 'v1', credentials=delegated_credentials)
-    query = 'newer_than:2d'
+    query = 'newer_than:1d'
     openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     redis_client = RedisClient(host='localhost', port=6379, db=8, decode_responses=True)
 
