@@ -111,6 +111,12 @@ class ThreadProcessor:
         return match.group(1).lower() if match else email_string.lower()
 
     def fetch_threads(self, query, google_groups):
+        def within_last_n_days(date_str, n=7):
+            """Check if the date is within the last N days."""
+            message_date = datetime.strptime(date_str, "%a, %d %b %Y %H:%M:%S %Z")
+            cutoff_date = datetime.now() - timedelta(days=n)
+            return message_date > cutoff_date
+
         all_threads = self.gmail_service.users().threads().list(userId='me', q=query).execute().get('threads', [])
         thread_managers = {}  # Updated to use ThreadManager
 
@@ -130,6 +136,11 @@ class ThreadProcessor:
                     continue
 
                 date_header = next((header['value'] for header in headers if header['name'] == 'Date'), None)
+
+                # Consider out token usage for GPT and limit the amount of reply chains we include in the ThreadManager
+                if date_header and not within_last_n_days(date_header, n=7):
+                    continue
+
                 subject_header = next((header['value'] for header in headers if header['name'] == 'Subject'),
                                       None)
 
@@ -246,7 +257,7 @@ class RedisClient:
                 if pattern_type == "thread":
                     thread_id = key.split(':')[1]  # Assuming key format is "Thread summary:{thread_id}"
                     print(f"Thread ID: {thread_id}, Summary: {summary}\n")
-                    print("-" * 50)
+                    print("---" * 50)
                 else:
                     group_id = key.split(':')[1]
                     print(f"Group ID: {group_id}, Summary: {summary}\n")
@@ -290,7 +301,7 @@ def main():
     redis_client = RedisClient(host='localhost', port=6379, db=8, decode_responses=True)
 
     # # for testing, remove after:
-    # RedisClient.delete_all_entries()
+    redis_client.delete_all_entries()
 
     thread_summary_prompt_file_path = 'thread_summary_prompt.txt'
     group_summary_prompt_file_path = 'group_summary_prompt.txt'
@@ -310,8 +321,8 @@ def main():
         group_processor.add_summarized_thread(thread_manager)
     groups_to_digest = group_processor.generate_group_summaries(summary_generator, redis_client)
 
-    print(f"\n group processor's Group to Threads dict = {group_processor.group_to_threads}\n")
-    print(f"\n groups_to_digest = {groups_to_digest}\n")
+    # print(f"\n group processor's Group to Threads dict = {group_processor.group_to_threads}\n")
+    # print(f"\n groups_to_digest = {groups_to_digest}\n")
 
     sender = "summary@month2month.com"
     # test_send(groups_to_digest, sender, gmail_client)
