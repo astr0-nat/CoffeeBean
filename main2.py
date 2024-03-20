@@ -83,6 +83,9 @@ class ThreadManager:
     def set_summary(self, summary):
         self.summary = summary
 
+    def get_content(self):
+        return self.content
+
 
 class ThreadProcessor:
     def __init__(self, gmail_service):
@@ -144,7 +147,7 @@ class ThreadProcessor:
 
                 group_recipients = all_recipients.intersection(google_groups)
 
-                print(f" ThreadManager's content = {ThreadManager.content}\n")
+                print(f" ThreadManager's content = {thread_manager.get_content()}\n")
                 print(f"All recipients for this thread: {group_recipients}\n")
                 print(f"Group recipients before in ThreadManager: {group_recipients}\n")
                 for group_email in group_recipients:
