@@ -16,7 +16,6 @@ from googleapiclient.errors import HttpError
 from datetime import datetime, timedelta
 import pytz
 
-
 load_dotenv()
 SCOPES = os.getenv("SCOPES").split(',')
 SUMMARY_EMAIL_ADDRESS = "summary@month2month.com"
@@ -119,6 +118,29 @@ class ThreadProcessor:
             cutoff_date = datetime.now(pytz.utc) - timedelta(days=n)
             return message_date > cutoff_date
 
+        def clean_message(message):
+            # Define patterns for headers, footers, and quoted text
+            header_footer_patterns = [
+                r"^\-\-.*$",  # Common footer delimiter
+                r"You received this message because.*$",  # Subscription information
+                r"To unsubscribe from this group.*$",  # Unsubscribe information
+                # Add more patterns as needed
+            ]
+
+            # Pattern for quoted text
+            quoted_text_pattern = r"^>.*$"
+
+            # Combine all patterns into a single regular expression
+            combined_pattern = "|".join(header_footer_patterns) + "|" + quoted_text_pattern
+
+            # Use re.MULTILINE to allow ^ and $ to match the start and end of each line
+            cleaned_email = re.sub(combined_pattern, '', email, flags=re.MULTILINE)
+
+            # Optionally, strip extra newlines left after removals
+            cleaned_email = re.sub(r'\n\s*\n', '\n\n', cleaned_email)
+
+            return cleaned_email.strip()
+
         all_threads = self.gmail_service.users().threads().list(userId='me', q=query).execute().get('threads', [])
         thread_managers = {}  # Updated to use ThreadManager
 
@@ -127,6 +149,7 @@ class ThreadProcessor:
             thread_manager = ThreadManager(thread_id=thread_id)
             t_data = self.gmail_service.users().threads().get(userId='me', id=thread_id, format='full').execute()
 
+            i = 0
             for message in t_data['messages']:
                 payload = message['payload']
                 headers = payload.get('headers', [])
@@ -139,7 +162,7 @@ class ThreadProcessor:
 
                 date_header = next((header['value'] for header in headers if header['name'] == 'Date'), None)
 
-                # Consider out token usage for GPT and limit the amount of reply chains we include in the ThreadManager
+                # Consider our token usage for GPT and limit the amount of reply chains we include in the ThreadManager
                 if date_header and not within_last_n_days(date_header, n=7):
                     continue
 
@@ -147,7 +170,10 @@ class ThreadProcessor:
                                       None)
 
                 body_text = self._get_text_from_payload(payload)
-                thread_manager.add_content(body_text, date_header, from_email, subject_header)
+                clean_body_text = clean_message(body_text)
+                print(f" message number {i} in thread: {thread_id}\n")
+                print(f"body text: {clean_body_text}\n")
+                thread_manager.add_content(clean_body_text, date_header, from_email, subject_header)
 
             if t_data['messages']:
                 recipients_headers = ['To', 'Cc', 'Bcc']
@@ -161,7 +187,7 @@ class ThreadProcessor:
 
                 group_recipients = all_recipients.intersection(google_groups)
 
-                print(f" ThreadManager's content = {thread_manager.get_content()}\n")
+                # print(f" ThreadManager's content = {thread_manager.get_content()}\n")
                 print(f"All recipients for this thread: {group_recipients}\n")
                 print(f"Group recipients before in ThreadManager: {group_recipients}\n")
                 for group_email in group_recipients:
@@ -303,8 +329,7 @@ def main():
     openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     redis_client = RedisClient(host='localhost', port=6379, db=8, decode_responses=True)
 
-    # # for testing, remove after:
-    redis_client.delete_all_entries()
+    # # # for testing, remove after:
 
     thread_summary_prompt_file_path = 'thread_summary_prompt.txt'
     group_summary_prompt_file_path = 'group_summary_prompt.txt'
