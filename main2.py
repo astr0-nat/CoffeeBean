@@ -13,6 +13,9 @@ from openai import OpenAI
 import redis
 from datetime import date
 from googleapiclient.errors import HttpError
+from datetime import datetime, timedelta
+import pytz
+
 
 load_dotenv()
 SCOPES = os.getenv("SCOPES").split(',')
@@ -112,9 +115,8 @@ class ThreadProcessor:
 
     def fetch_threads(self, query, google_groups):
         def within_last_n_days(date_str, n=7):
-            """Check if the date is within the last N days."""
-            message_date = datetime.strptime(date_str, "%a, %d %b %Y %H:%M:%S %Z")
-            cutoff_date = datetime.now() - timedelta(days=n)
+            message_date = datetime.strptime(date_str, '%a, %d %b %Y %H:%M:%S %z')
+            cutoff_date = datetime.now(pytz.utc) - timedelta(days=n)
             return message_date > cutoff_date
 
         all_threads = self.gmail_service.users().threads().list(userId='me', q=query).execute().get('threads', [])
