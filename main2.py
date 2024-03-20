@@ -277,6 +277,7 @@ def test_send(group_to_digest_dict, sender, gmail_client):
 def main():
     pickle_path = "./group_extractor/google_groups_set.pkl"
     company_google_groups = load_email_set_from_pickle(pickle_path)
+    print(f"Company Google Groups: {company_google_groups}\n")
     credentials = service_account.Credentials.from_service_account_file(os.getenv("SERVICE_ACCOUNT_FILE"),
                                                                         scopes=SCOPES)
     delegated_credentials = credentials.with_subject('summary@month2month.com')
@@ -310,7 +311,7 @@ def main():
     print(f"\n groups_to_digest = {groups_to_digest}\n")
 
     sender = "summary@month2month.com"
-    test_send(groups_to_digest, sender, gmail_client)
+    # test_send(groups_to_digest, sender, gmail_client)
     print("Digests sent!")
     # so this should send now to summary
 
