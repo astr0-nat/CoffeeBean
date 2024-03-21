@@ -13,6 +13,7 @@ from googleapiclient.errors import HttpError
 import pytz
 from openai import OpenAI
 import redis
+
 load_dotenv()
 SCOPES = os.getenv("SCOPES").split(',')
 SUMMARY_EMAIL_ADDRESS = "summary@month2month.com"
@@ -191,7 +192,7 @@ class ThreadProcessor:
 
         return thread_managers
 
-    def summarize_thread(self,thread_manager, summary_generator, redis_client):
+    def summarize_thread(self, thread_manager, summary_generator, redis_client):
         # Check Redis first to avoid re-summarization
         redis_key = f"Thread summary:{thread_manager.thread_id}"
         summary = redis_client.get_value(redis_key)
@@ -220,7 +221,8 @@ class GroupSummaryManager:
             intro_message = f"Hello! I am your {group} summarizer. Here is your summary of yesterday's activity:\n\n"
             combined_content = "\n ----- \n".join([t.summary for t in threads])
             links_content = "\n\n".join([f" Link for '{t.subject}': {t.gmail_link}" for t in threads])
-            groups_to_digests[group] = intro_message + combined_content + "\n\nLinks to original threads:\n" + links_content
+            groups_to_digests[
+                group] = intro_message + combined_content + "\n\nLinks to original threads:\n" + links_content
 
         return groups_to_digests
 
@@ -332,6 +334,17 @@ def test_send(group_to_digest_dict, sender, gmail_client):
         gmail_client.send_email(digest, "summary@month2month.com", sender, subject)
 
 
+def send_digests(groups_to_digests, sender, gmail_client):
+    for group_address, digest in groups_to_digests.items():
+        group_name = gmail_client.get_username_from_email(group_address)
+        yesterday = date.today() - timedelta(days=1)
+        subject = f"{group_name} digest {yesterday}"
+        gmail_client.send_email(digest, group_address, sender, subject)
+
+
+
+
+
 def main():
     pickle_path = "./group_extractor/google_groups_set.pkl"
     company_google_groups = load_email_set_from_pickle(pickle_path)
@@ -359,14 +372,12 @@ def main():
         # Avoid processing now empty threads post text processing
         if thread_manager.content:
             thread_processor.summarize_thread(thread_manager, summary_generator, redis_client)
-            # Update Group Processor with newly summary threads
             group_processor.add_summarized_thread(thread_manager)
     groups_to_digests = group_processor.generate_group_summaries(summary_generator, redis_client)
 
     # groups_to_digests = group_processor.concatenate_thread_summaries()
 
     sender = "summary@month2month.com"
-
     test_send(groups_to_digests, sender, gmail_client)
     print("Digests sent!")
 
