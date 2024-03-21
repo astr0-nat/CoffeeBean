@@ -325,8 +325,8 @@ def test_send(group_to_digest_dict, sender, gmail_client):
         group_name = gmail_client.get_username_from_email(group_address)
         yesterday = date.today() - timedelta(days=1)
         subject = f"{group_name} digest {yesterday}"
-        # html_email = EmailUtilities.generate_html_email(digest)
-        gmail_client.send_email(digest, "summary@month2month.com", sender, subject)
+        html_email = EmailUtilities.generate_html_email(digest)
+        gmail_client.send_email(html_email, "summary@month2month.com", sender, subject)
 
 
 
