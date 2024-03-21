@@ -258,13 +258,27 @@ class EmailUtilities:
         html_content += "</body></html>"
         return html_content
 
-    def send_email(self, content, to, sender, subject):
+    @staticmethod
+    def generate_plain_text_email(gpt_response):
+        entries = json.loads(gpt_response)
+        plain_text_content = ""
+        for entry in entries:
+            plain_text_content += f"{entry['header'].upper()}\n\n"  # Header in uppercase for emphasis
+            plain_text_content += f"{entry['summary']}\n\n"  # Summary as provided
+            plain_text_content += "-" * 50 + "\n\n"  # Divider for readability
+        return plain_text_content
+
+    def send_email(self, digest_json, to, sender, subject):
+        message = EmailMessage()
+        plain_text_content = EmailUtilities.generate_plain_text_email(digest_json)
+        html_content = EmailUtilities.generate_html_email(digest_json)
+        message.set_content(plain_text_content)
+        message.add_alternative(html_content, subtype='html')
+
+        message["To"] = to
+        message["From"] = sender
+        message["Subject"] = subject
         try:
-            message = EmailMessage()
-            message.set_content(content)
-            message["To"] = to
-            message["From"] = sender
-            message["Subject"] = subject
             encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
             body = {"raw": encoded_message}
             sent_message = self.service.users().messages().send(userId="me", body=body).execute()
@@ -321,13 +335,11 @@ def load_email_set_from_pickle(file_path):
 
 
 def test_send(group_to_digest_dict, sender, gmail_client):
-    for group_address, digest in group_to_digest_dict.items():
+    for group_address, digest_json in group_to_digest_dict.items():
         group_name = gmail_client.get_username_from_email(group_address)
         yesterday = date.today() - timedelta(days=1)
         subject = f"{group_name} digest {yesterday}"
-        html_email = EmailUtilities.generate_html_email(digest)
-        gmail_client.send_email(html_email, "summary@month2month.com", sender, subject)
-
+        gmail_client.send_email(digest_json, "summary@month2month.com", sender, subject)
 
 
 def main():
@@ -364,7 +376,7 @@ def main():
 
     sender = "summary@month2month.com"
 
-    # test_send(groups_to_digest, sender, gmail_client)
+    test_send(groups_to_digest, sender, gmail_client)
     print("Digests sent!")
     # so this should send now to summary
 
