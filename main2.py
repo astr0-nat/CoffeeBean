@@ -1,23 +1,19 @@
 import base64
-from email.message import EmailMessage
-import json
-
-import re
 import os
-from collections import defaultdict
 import pickle
+import re
+from collections import defaultdict
+from datetime import date, datetime, timedelta
+from email.message import EmailMessage
 
+from dotenv import load_dotenv
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from dotenv import load_dotenv
+from googleapiclient.errors import HttpError
+import pytz
 from openai import OpenAI
 import redis
-from datetime import date
-from googleapiclient.errors import HttpError
-from datetime import datetime, timedelta
-import pytz
-
-load_dotenv(),
+load_dotenv()
 SCOPES = os.getenv("SCOPES").split(',')
 SUMMARY_EMAIL_ADDRESS = "summary@month2month.com"
 
@@ -76,9 +72,13 @@ class ThreadManager:
         self.content = ""
         self.groups = set()
         self.summary = None
+        self.subject = ""
+        self.gmail_link = ""
 
     def add_content(self, new_content, date_header, from_email, subject):
         self.content += f"\n Subject Header: {subject}\nDate: {date_header}\nFrom: {from_email}\nContent: {new_content}"
+        self.subject = subject
+        self.gmail_link = f"https://mail.google.com/mail/u/0/#inbox/{self.thread_id}"
 
     def add_group(self, group_email):
         self.groups.add(group_email)
@@ -144,14 +144,13 @@ class ThreadProcessor:
             return cleaned_email.strip()
 
         all_threads = self.gmail_service.users().threads().list(userId='me', q=query).execute().get('threads', [])
-        thread_managers = {}  # Updated to use ThreadManager
+        thread_managers = {}
 
         for thread in all_threads:
             thread_id = thread['id']
             thread_manager = ThreadManager(thread_id=thread_id)
             t_data = self.gmail_service.users().threads().get(userId='me', id=thread_id, format='full').execute()
 
-            i = 0
             for message in t_data['messages']:
                 payload = message['payload']
                 headers = payload.get('headers', [])
@@ -192,8 +191,7 @@ class ThreadProcessor:
 
         return thread_managers
 
-    @staticmethod
-    def summarize_thread(self, thread_manager, summary_generator, redis_client):
+    def summarize_thread(self,thread_manager, summary_generator, redis_client):
         # Check Redis first to avoid re-summarization
         redis_key = f"Thread summary:{thread_manager.thread_id}"
         summary = redis_client.get_value(redis_key)
@@ -221,7 +219,8 @@ class GroupSummaryManager:
         for group, threads in self.group_to_threads.items():
             intro_message = f"Hello! I am your {group} summarizer. Here is your summary of yesterday's activity:\n\n"
             combined_content = "\n ----- \n".join([t.summary for t in threads])
-            groups_to_digests[group] = intro_message + combined_content
+            links_content = "\n\n".join([f" Link for '{t.subject}': {t.gmail_link}" for t in threads])
+            groups_to_digests[group] = intro_message + combined_content + "\n\nLinks to original threads:\n" + links_content
 
         return groups_to_digests
 
@@ -229,13 +228,14 @@ class GroupSummaryManager:
         group_summaries = {}
         for group, threads in self.group_to_threads.items():
             combined_content = "\n ----- \n".join([t.content for t in threads])
+            links_content = "\n\n".join([f" Link for '{t.subject}': {t.gmail_link}" for t in threads])
             redis_key = f"Group summary: {group}"
             summary = redis_client.get_value(redis_key)
             if not summary:
                 summary = summary_generator.generate_summary(combined_content, "group")
                 redis_client.set_value(redis_key, summary)
             intro_message = f"Hello! I am your {group} summarizer. Here is your summary of yesterday's activity:\n\n"
-            group_summaries[group] = intro_message + summary
+            group_summaries[group] = intro_message + summary + "\n\nLinks to original threads:\n" + links_content
         return group_summaries
 
 
@@ -369,14 +369,6 @@ def main():
 
     test_send(groups_to_digests, sender, gmail_client)
     print("Digests sent!")
-    # so this should send now to summary
-
-    # this below would be for production
-    # for group_address, digest in group_to_digest:
-    #     to = group_address
-    #     group_name = get_username_from_email(to)
-    #     subject = f"{group_name} digest {date.today()}"
-    #     gmail_send_email(gmail_service, digest, to, sender, subject)
 
 
 if __name__ == "__main__":
