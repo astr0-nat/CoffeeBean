@@ -249,8 +249,19 @@ class EmailUtilities:
         return match.group(1) if match else None
 
     @staticmethod
+    def safe_json_loads(gpt_response):
+        try:
+            entries = json.loads(gpt_response)
+            if not isinstance(entries, list):
+                entries = [entries]
+            return entries
+        except json.JSONDecodeError as e:
+            print(f"An error occurred while parsing JSON: {e}")
+            return []
+
+    @staticmethod
     def generate_html_email(gpt_response):
-        entries = json.loads(gpt_response.content)
+        entries = EmailUtilities.safe_json_loads(gpt_response)
         html_content = "<html><body>"
         for entry in entries:
             html_content += f"<h2 style='color: #333; font-family: Arial, sans-serif;'>{entry['header']}</h2>"
@@ -260,7 +271,7 @@ class EmailUtilities:
 
     @staticmethod
     def generate_plain_text_email(gpt_response):
-        entries = json.loads(gpt_response)
+        entries = EmailUtilities.safe_json_loads(gpt_response)
         plain_text_content = ""
         for entry in entries:
             plain_text_content += f"{entry['header'].upper()}\n\n"  # Header in uppercase for emphasis
