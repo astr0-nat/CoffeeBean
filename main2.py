@@ -1,5 +1,6 @@
 import base64
 from email.message import EmailMessage
+import json
 
 import re
 import os
@@ -16,7 +17,7 @@ from googleapiclient.errors import HttpError
 from datetime import datetime, timedelta
 import pytz
 
-load_dotenv()
+load_dotenv(),
 SCOPES = os.getenv("SCOPES").split(',')
 SUMMARY_EMAIL_ADDRESS = "summary@month2month.com"
 
@@ -119,24 +120,25 @@ class ThreadProcessor:
             return message_date > cutoff_date
 
         def clean_message(message):
-            # Define patterns for headers, footers, and quoted text
+            # Define patterns for headers, footers, and quoted text without the (?is) flag
             header_footer_patterns = [
+                r"(?is)The content of this email is confidential.*?occur in the future\.",  # Confidentiality notice
                 r"^\-\-.*$",  # Common footer delimiter
                 r"You received this message because.*$",  # Subscription information
                 r"To unsubscribe from this group.*$",  # Unsubscribe information
-                # Add more patterns as needed
+                r"www\.Month2Month\.com\s*<http://www\.month2month\.com/>\s*\[image:"  # M2M signature information
+                r"\s*Facebook icon\]\s*<https://www\.facebook\.com/pages/category/"
+                r"Property-Management-Company/Month2Month-103560381823386/>\s*\[image:"
+                r"\s*LinkedIn icon\]\s*<https://www\.linkedin\.com/company/holidale-inc->"
+                r"\s*\[image:\s*Youtube icon\]\s*<https://www\.youtube\.com/channel/UCEfOoj6HQ"
+                r"bgxSneN8fWFf8A>\s*\[image:\s*Instagram icon\]\s*<https://www\.instagram\.com/"
+                r"month2monthdotcom/\?hl=en>",
+                r"^On .*<.*?@.*?>\s*wrote:$",  # Quoted reply header
+                r"^>.*$"  # Quoted reply pattern
             ]
 
-            # Pattern for quoted text
-            quoted_text_pattern = r"^>.*$"
-
-            # Combine all patterns into a single regular expression
-            combined_pattern = "|".join(header_footer_patterns) + "|" + quoted_text_pattern
-
-            # Use re.MULTILINE to allow ^ and $ to match the start and end of each line
-            cleaned_email = re.sub(combined_pattern, '', email, flags=re.MULTILINE)
-
-            # Optionally, strip extra newlines left after removals
+            combined_pattern = "|".join(header_footer_patterns)
+            cleaned_email = re.sub(combined_pattern, '', message, flags=re.DOTALL | re.IGNORECASE | re.MULTILINE)
             cleaned_email = re.sub(r'\n\s*\n', '\n\n', cleaned_email)
 
             return cleaned_email.strip()
@@ -172,6 +174,7 @@ class ThreadProcessor:
                 body_text = self._get_text_from_payload(payload)
                 clean_body_text = clean_message(body_text)
                 print(f" message number {i} in thread: {thread_id}\n")
+                i = i + 1
                 print(f"body text: {clean_body_text}\n")
                 thread_manager.add_content(clean_body_text, date_header, from_email, subject_header)
 
@@ -182,19 +185,19 @@ class ThreadProcessor:
                     header_value = next(
                         (header['value'] for header in t_data['messages'][0]['payload'].get('headers', []) if
                          header['name'] == header_name), "")
-                    print(f"header_name: {header_name}, header_value: {header_value}")
+                    # print(f"header_name: {header_name}, header_value: {header_value}")
                     all_recipients.update({self._extract_email_address(email) for email in header_value.split(',')})
 
                 group_recipients = all_recipients.intersection(google_groups)
 
                 # print(f" ThreadManager's content = {thread_manager.get_content()}\n")
-                print(f"All recipients for this thread: {group_recipients}\n")
-                print(f"Group recipients before in ThreadManager: {group_recipients}\n")
+                # print(f"All recipients for this thread: {group_recipients}\n")
+                # print(f"Group recipients before in ThreadManager: {group_recipients}\n")
                 for group_email in group_recipients:
                     thread_manager.add_group(group_email)
-                print(f"Group recipients set inside ThreadManager: {thread_manager.groups}\n")
+                # print(f"Group recipients set inside ThreadManager: {thread_manager.groups}\n")
                 print(f"Thread ID of this Thread manager = {thread_manager.thread_id}\n")
-                print(f"Thread ID of this thread = {thread_id}\n")
+                # print(f"Thread ID of this thread = {thread_id}\n")
                 print('---' * 50)
 
             thread_managers[thread_id] = thread_manager
@@ -218,7 +221,6 @@ class ThreadProcessor:
 class GroupSummaryManager:
     def __init__(self):
         self.group_to_threads = defaultdict(list)
-        self.expiration_time = 28800  # 8 hours
 
     def add_summarized_thread(self, thread_manager):
         for group in thread_manager.groups:
@@ -245,6 +247,16 @@ class EmailUtilities:
     def get_username_from_email(email_address):
         match = re.match(r'([^@]+)@', email_address)
         return match.group(1) if match else None
+
+    @staticmethod
+    def generate_html_email(gpt_response):
+        entries = json.loads(gpt_response.content)
+        html_content = "<html><body>"
+        for entry in entries:
+            html_content += f"<h2 style='color: #333; font-family: Arial, sans-serif;'>{entry['header']}</h2>"
+            html_content += f"<p style='color: #666; font-family: Arial, sans-serif;'>{entry['summary']}</p>"
+        html_content += "</body></html>"
+        return html_content
 
     def send_email(self, content, to, sender, subject):
         try:
@@ -310,11 +322,12 @@ def load_email_set_from_pickle(file_path):
 
 def test_send(group_to_digest_dict, sender, gmail_client):
     for group_address, digest in group_to_digest_dict.items():
-        # this 'to' is for testing
         group_name = gmail_client.get_username_from_email(group_address)
-        subject = f"{group_name} digest {date.today()}"
-        test_digest = f"GROUP NAME: {group_name}\n\n {digest}"
-        gmail_client.send_email(test_digest, "summary@month2month.com", sender, subject)
+        yesterday = date.today() - timedelta(days=1)
+        subject = f"{group_name} digest {yesterday}"
+        # html_email = EmailUtilities.generate_html_email(digest)
+        gmail_client.send_email(digest, "summary@month2month.com", sender, subject)
+
 
 
 def main():
@@ -349,10 +362,8 @@ def main():
         group_processor.add_summarized_thread(thread_manager)
     groups_to_digest = group_processor.generate_group_summaries(summary_generator, redis_client)
 
-    # print(f"\n group processor's Group to Threads dict = {group_processor.group_to_threads}\n")
-    # print(f"\n groups_to_digest = {groups_to_digest}\n")
-
     sender = "summary@month2month.com"
+
     # test_send(groups_to_digest, sender, gmail_client)
     print("Digests sent!")
     # so this should send now to summary
