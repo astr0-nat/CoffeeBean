@@ -56,7 +56,6 @@ class SummaryGenerator:
         prompt = self.prompts[prompt_type]
         summary = self.openai_client.chat.completions.create(
             model="gpt-4",
-            response_format={ "type": "json_object"},
             messages=[
                 {
                     "role": "system",
@@ -79,7 +78,7 @@ class ThreadManager:
         self.summary = None
 
     def add_content(self, new_content, date_header, from_email, subject):
-        self.content += f"\n Subject Header: {subject}\nDate: {date_header}\nFrom: {from_email}\n{new_content}"
+        self.content += f"\n Subject Header: {subject}\nDate: {date_header}\nFrom: {from_email}\nContent: {new_content}"
 
     def add_group(self, group_email):
         self.groups.add(group_email)
@@ -174,9 +173,6 @@ class ThreadProcessor:
 
                 body_text = self._get_text_from_payload(payload)
                 clean_body_text = clean_message(body_text)
-                print(f" message number {i} in thread: {thread_id}\n")
-                i = i + 1
-                print(f"body text: {clean_body_text}\n")
                 thread_manager.add_content(clean_body_text, date_header, from_email, subject_header)
 
             if t_data['messages']:
@@ -186,25 +182,17 @@ class ThreadProcessor:
                     header_value = next(
                         (header['value'] for header in t_data['messages'][0]['payload'].get('headers', []) if
                          header['name'] == header_name), "")
-                    # print(f"header_name: {header_name}, header_value: {header_value}")
                     all_recipients.update({self._extract_email_address(email) for email in header_value.split(',')})
 
                 group_recipients = all_recipients.intersection(google_groups)
 
-                # print(f" ThreadManager's content = {thread_manager.get_content()}\n")
-                # print(f"All recipients for this thread: {group_recipients}\n")
-                # print(f"Group recipients before in ThreadManager: {group_recipients}\n")
                 for group_email in group_recipients:
                     thread_manager.add_group(group_email)
-                # print(f"Group recipients set inside ThreadManager: {thread_manager.groups}\n")
-                print(f"Thread ID of this Thread manager = {thread_manager.thread_id}\n")
-                # print(f"Thread ID of this thread = {thread_id}\n")
-                print('---' * 50)
-
             thread_managers[thread_id] = thread_manager
 
         return thread_managers
 
+    @staticmethod
     def summarize_thread(self, thread_manager, summary_generator, redis_client):
         # Check Redis first to avoid re-summarization
         redis_key = f"Thread summary:{thread_manager.thread_id}"
@@ -227,6 +215,16 @@ class GroupSummaryManager:
         for group in thread_manager.groups:
             self.group_to_threads[group].append(thread_manager)
 
+    def concatenate_thread_summaries(self):
+        groups_to_digests = {}
+
+        for group, threads in self.group_to_threads.items():
+            intro_message = f"Hello! I am your {group} summarizer. Here is your summary of yesterday's activity:\n\n"
+            combined_content = "\n ----- \n".join([t.summary for t in threads])
+            groups_to_digests[group] = intro_message + combined_content
+
+        return groups_to_digests
+
     def generate_group_summaries(self, summary_generator, redis_client):
         group_summaries = {}
         for group, threads in self.group_to_threads.items():
@@ -236,7 +234,8 @@ class GroupSummaryManager:
             if not summary:
                 summary = summary_generator.generate_summary(combined_content, "group")
                 redis_client.set_value(redis_key, summary)
-            group_summaries[group] = summary
+            intro_message = f"Hello! I am your {group} summarizer. Here is your summary of yesterday's activity:\n\n"
+            group_summaries[group] = intro_message + summary
         return group_summaries
 
 
@@ -250,43 +249,22 @@ class EmailUtilities:
         return match.group(1) if match else None
 
     @staticmethod
-    def safe_json_loads(gpt_response):
-        try:
-            entries = json.loads(gpt_response)
-            if not isinstance(entries, list):
-                entries = [entries]
-            return entries
-        except json.JSONDecodeError as e:
-            print(f"An error occurred while parsing JSON: {e}")
-            return []
-
-    @staticmethod
-    def generate_html_email(gpt_response):
-        entries = EmailUtilities.safe_json_loads(gpt_response)
-        html_content = "<html><body>"
-        for entry in entries:
-            html_content += f"<h2 style='color: #333; font-family: Arial, sans-serif;'>{entry['header']}</h2>"
-            html_content += f"<p style='color: #666; font-family: Arial, sans-serif;'>{entry['summary']}</p>"
-        html_content += "</body></html>"
-        return html_content
-
-    @staticmethod
     def generate_plain_text_email(gpt_response):
-        entries = EmailUtilities.safe_json_loads(gpt_response)
-        plain_text_content = ""
-        for entry in entries:
-            plain_text_content += f"{entry['header'].upper()}\n\n"  # Header in uppercase for emphasis
-            plain_text_content += f"{entry['summary']}\n\n"  # Summary as provided
-            plain_text_content += "-" * 50 + "\n\n"  # Divider for readability
-        return plain_text_content
+        def bold_headers(body):
+            def to_upper(match):
+                return match.group(1).upper()
 
-    def send_email(self, digest_json, to, sender, subject):
+            # Pattern to match **Header Text**
+            pattern = re.compile(r'\*\*(.*?)\*\*')
+            formatted_response = re.sub(pattern, lambda match: to_upper(match), gpt_response)
+            return formatted_response
+
+        return bold_headers(gpt_response)
+
+    def send_email(self, digest, to, sender, subject):
         message = EmailMessage()
-        plain_text_content = EmailUtilities.generate_plain_text_email(digest_json)
-        html_content = EmailUtilities.generate_html_email(digest_json)
+        plain_text_content = EmailUtilities.generate_plain_text_email(digest)
         message.set_content(plain_text_content)
-        message.add_alternative(html_content, subtype='html')
-
         message["To"] = to
         message["From"] = sender
         message["Subject"] = subject
@@ -347,17 +325,16 @@ def load_email_set_from_pickle(file_path):
 
 
 def test_send(group_to_digest_dict, sender, gmail_client):
-    for group_address, digest_json in group_to_digest_dict.items():
+    for group_address, digest in group_to_digest_dict.items():
         group_name = gmail_client.get_username_from_email(group_address)
         yesterday = date.today() - timedelta(days=1)
         subject = f"{group_name} digest {yesterday}"
-        gmail_client.send_email(digest_json, "summary@month2month.com", sender, subject)
+        gmail_client.send_email(digest, "summary@month2month.com", sender, subject)
 
 
 def main():
     pickle_path = "./group_extractor/google_groups_set.pkl"
     company_google_groups = load_email_set_from_pickle(pickle_path)
-    print(f"Company Google Groups: {company_google_groups}\n")
     credentials = service_account.Credentials.from_service_account_file(os.getenv("SERVICE_ACCOUNT_FILE"),
                                                                         scopes=SCOPES)
     delegated_credentials = credentials.with_subject('summary@month2month.com')
@@ -365,8 +342,6 @@ def main():
     query = 'newer_than:1d'
     openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     redis_client = RedisClient(host='localhost', port=6379, db=8, decode_responses=True)
-
-    # # # for testing, remove after:
 
     thread_summary_prompt_file_path = 'thread_summary_prompt.txt'
     group_summary_prompt_file_path = 'group_summary_prompt.txt'
@@ -381,14 +356,18 @@ def main():
 
     thread_managers = thread_processor.fetch_threads(query, company_google_groups)
     for thread_manager in thread_managers.values():
-        thread_processor.summarize_thread(thread_manager, summary_generator, redis_client)
-        # Update Group Processor with newly summary threads
-        group_processor.add_summarized_thread(thread_manager)
-    groups_to_digest = group_processor.generate_group_summaries(summary_generator, redis_client)
+        # Avoid processing now empty threads post text processing
+        if thread_manager.content:
+            thread_processor.summarize_thread(thread_manager, summary_generator, redis_client)
+            # Update Group Processor with newly summary threads
+            group_processor.add_summarized_thread(thread_manager)
+    groups_to_digests = group_processor.generate_group_summaries(summary_generator, redis_client)
+
+    # groups_to_digests = group_processor.concatenate_thread_summaries()
 
     sender = "summary@month2month.com"
 
-    test_send(groups_to_digest, sender, gmail_client)
+    test_send(groups_to_digests, sender, gmail_client)
     print("Digests sent!")
     # so this should send now to summary
 
