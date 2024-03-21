@@ -56,6 +56,7 @@ class SummaryGenerator:
         prompt = self.prompts[prompt_type]
         summary = self.openai_client.chat.completions.create(
             model="gpt-4",
+            response_format={ "type": "json_object"},
             messages=[
                 {
                     "role": "system",
