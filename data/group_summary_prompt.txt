@@ -1,6 +1,6 @@
 I am sending a long message that is a collection of texts. each text is delimited with five dashes ( ex: ----- ).
  Each text represents the summary of a correspondence via email chain. this collection of texts represents
- all the separate email correspondances sent to a particular email group.
+ all the separate email correspondences sent to a particular email group.
 
 summarize the activity of the group given the thread summaries. if applicable, Highlight any conclusions or decisions made, and outline these
 outcomes or resolutions. From the discussions, derive concrete and actionable tasks or goals, specifying the

@@ -19,7 +19,7 @@ def extract_email_addresses_from_file(source_file, dest_file):
             dest_file (str): The path to the output file where the set of email addresses will be saved as a pickle file.
 
         Example Usage:
-            >>> extract_email_addresses_from_file("text_from_all_groups_webpage.txt", "google_groups_set.pkl")
+            >>> extract_email_addresses_from_file("../data/text_from_all_groups_webpage.txt", "../data/google_groups_set.pkl")
 
         Purpose:
             The script aids in keeping an up-to-date list of Google Group email addresses, plus additional specific
@@ -56,6 +56,6 @@ def extract_email_addresses_from_file(source_file, dest_file):
         pickle.dump(lowercase_emails, dest_file)
 
 
-source_file_path = "text_from_all_groups_webpage.txt"
-dest_file_path = "google_groups_set.pkl"
+source_file_path = "../data/text_from_all_groups_webpage.txt"
+dest_file_path = "../data/google_groups_set.pkl"
 extract_email_addresses_from_file(source_file_path, dest_file_path)
