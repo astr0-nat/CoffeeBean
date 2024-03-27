@@ -1,5 +1,6 @@
 .idea/
-credentials/
-env/
 redisDebug.py
-
+m2m_digest_service_key.json
+credentials.json
+.env
+token.pickle

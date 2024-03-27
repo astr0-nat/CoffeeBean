@@ -115,10 +115,10 @@ class ThreadProcessor:
         return match.group(1).lower() if match else email_string.lower()
 
     def fetch_threads(self, query, google_groups):
-        def within_last_n_days(date_str, n=7):
-            message_date = datetime.strptime(date_str, '%a, %d %b %Y %H:%M:%S %z')
-            cutoff_date = datetime.now(pytz.utc) - timedelta(days=n)
-            return message_date > cutoff_date
+        # def within_last_n_days(date_str, n=7):
+        #     message_date = datetime.strptime(date_str, '%a, %d %b %Y %H:%M:%S %z')
+        #     cutoff_date = datetime.now(pytz.utc) - timedelta(days=n)
+        #     return message_date > cutoff_date
 
         def clean_message(message):
             # Define patterns for headers, footers, and quoted text without the (?is) flag
