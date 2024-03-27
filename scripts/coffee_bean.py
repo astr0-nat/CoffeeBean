@@ -214,17 +214,17 @@ class GroupSummaryManager:
         for group in thread_manager.groups:
             self.group_to_threads[group].append(thread_manager)
 
-    def concatenate_thread_summaries(self):
-        groups_to_digests = {}
-
-        for group, threads in self.group_to_threads.items():
-            intro_message = f"Hello! I am your {group} summarizer. Here is your summary of yesterday's activity:\n\n"
-            combined_content = "\n ----- \n".join([t.summary for t in threads])
-            links_content = "\n\n".join([f" Link for '{t.subject}': {t.gmail_link}" for t in threads])
-            groups_to_digests[
-                group] = intro_message + combined_content + "\n\nLinks to original threads:\n" + links_content
-
-        return groups_to_digests
+    # def concatenate_thread_summaries(self):
+    #     groups_to_digests = {}
+    #
+    #     for group, threads in self.group_to_threads.items():
+    #         intro_message = f"Hello! I am your {group} summarizer. Here is your summary of yesterday's activity:\n\n"
+    #         combined_content = "\n ----- \n".join([t.summary for t in threads])
+    #         links_content = "\n\n".join([f" Link for '{t.subject}': {t.gmail_link}" for t in threads])
+    #         groups_to_digests[
+    #             group] = intro_message + combined_content + "\n\nLinks to original threads:\n" + links_content
+    #
+    #     return groups_to_digests
 
     def generate_group_summaries(self, summary_generator, redis_client):
         group_summaries = {}
@@ -327,6 +327,7 @@ def load_email_set_from_pickle(file_path):
 
 
 def test_send(group_to_digest_dict, sender, gmail_client):
+    """ Sends the email digests to summary@month2month.com only for testing purposes. """
     for group_address, digest in group_to_digest_dict.items():
         group_name = gmail_client.get_username_from_email(group_address)
         yesterday = date.today() - timedelta(days=1)
@@ -335,6 +336,7 @@ def test_send(group_to_digest_dict, sender, gmail_client):
 
 
 def send_digests(groups_to_digests, sender, gmail_client):
+    """ Sends the email digests to their respective group email address. """
     for group_address, digest in groups_to_digests.items():
         group_name = gmail_client.get_username_from_email(group_address)
         yesterday = date.today() - timedelta(days=1)
@@ -343,7 +345,7 @@ def send_digests(groups_to_digests, sender, gmail_client):
 
 
 def main():
-    pickle_path = "./group_extractor/google_groups_set.pkl"
+    pickle_path = "../data/google_groups_set.pkl"
     company_google_groups = load_email_set_from_pickle(pickle_path)
     credentials = service_account.Credentials.from_service_account_file(os.getenv("SERVICE_ACCOUNT_FILE"),
                                                                         scopes=SCOPES)
@@ -353,8 +355,8 @@ def main():
     openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     redis_client = RedisClient(host='localhost', port=6379, db=8, decode_responses=True)
 
-    thread_summary_prompt_file_path = 'thread_summary_prompt.txt'
-    group_summary_prompt_file_path = 'group_summary_prompt.txt'
+    thread_summary_prompt_file_path = '../data/thread_summary_prompt.txt'
+    group_summary_prompt_file_path = '../data/group_summary_prompt.txt'
 
     thread_processor = ThreadProcessor(gmail_service)
     group_processor = GroupSummaryManager()
@@ -370,13 +372,11 @@ def main():
         if thread_manager.content:
             thread_processor.summarize_thread(thread_manager, summary_generator, redis_client)
             group_processor.add_summarized_thread(thread_manager)
-    groups_to_digests = group_processor.generate_group_summaries(summary_generator, redis_client)
 
-    # groups_to_digests = group_processor.concatenate_thread_summaries()
+    groups_to_digests = group_processor.generate_group_summaries(summary_generator, redis_client)
 
     sender = "summary@month2month.com"
     test_send(groups_to_digests, sender, gmail_client)
-    print("Digests sent!")
 
 
 if __name__ == "__main__":
