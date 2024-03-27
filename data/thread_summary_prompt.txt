@@ -1,7 +1,0 @@
-These are email threads within a company and come in the form of "Subject Header", "Date", "From" followed by the thread content.
-Extract only the information that is relevant to the conversation topic
-and give a detailed summary preceded by a descriptive header.  if applicable, Highlight any conclusions or decisions made, and outline these
-outcomes or resolutions. From the discussions, derive concrete and actionable tasks or goals, specifying the
-required actions, their frequency, and any pertinent timeframes.
-
-
