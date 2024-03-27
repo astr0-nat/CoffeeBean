@@ -345,7 +345,7 @@ def send_digests(groups_to_digests, sender, gmail_client):
 
 
 def main():
-    pickle_path = "../data/google_groups_set.pkl"
+    pickle_path = "./group_extractor/google_groups_set.pkl"
     company_google_groups = load_email_set_from_pickle(pickle_path)
     credentials = service_account.Credentials.from_service_account_file(os.getenv("SERVICE_ACCOUNT_FILE"),
                                                                         scopes=SCOPES)
@@ -355,8 +355,8 @@ def main():
     openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     redis_client = RedisClient(host='localhost', port=6379, db=8, decode_responses=True)
 
-    thread_summary_prompt_file_path = '../data/thread_summary_prompt.txt'
-    group_summary_prompt_file_path = '../data/group_summary_prompt.txt'
+    thread_summary_prompt_file_path = './thread_summary_prompt.txt'
+    group_summary_prompt_file_path = './group_summary_prompt.txt'
 
     thread_processor = ThreadProcessor(gmail_service)
     group_processor = GroupSummaryManager()
