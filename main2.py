@@ -165,8 +165,8 @@ class ThreadProcessor:
                 date_header = next((header['value'] for header in headers if header['name'] == 'Date'), None)
 
                 # Consider our token usage for GPT and limit the amount of reply chains we include in the ThreadManager
-                if date_header and not within_last_n_days(date_header, n=7):
-                    continue
+                # if date_header and not within_last_n_days(date_header, n=7):
+                #     continue
 
                 subject_header = next((header['value'] for header in headers if header['name'] == 'Subject'),
                                       None)
@@ -340,9 +340,6 @@ def send_digests(groups_to_digests, sender, gmail_client):
         yesterday = date.today() - timedelta(days=1)
         subject = f"{group_name} digest {yesterday}"
         gmail_client.send_email(digest, group_address, sender, subject)
-
-
-
 
 
 def main():

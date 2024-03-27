@@ -46,9 +46,11 @@ def extract_email_addresses_from_file(source_file, dest_file):
 
     # Find all matches in the text
     email_addresses = re.findall(email_pattern, text)
+    email_addresses.append("allstaff@month2month.com")
+    email_addresses.append("team-leads@month2month.com")
 
     # Convert the list of email addresses to a set to remove duplicates
-    unique_email_addresses = set(email_addresses)
+    unique_email_addresses = set(email.lower() for email in email_addresses)
 
     with open(dest_file, 'wb') as dest_file:
         pickle.dump(unique_email_addresses, dest_file)
