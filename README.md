@@ -18,7 +18,9 @@ ssh user@your_ip
 # Enter password when prompted.
 # Run the following wrapper script to execute CoffeeBean:
 coffee_run.sh
+
 How to Set Up a New Machine to Run This Program
+
 Gather all the sensitive information from the secure shared folder.
 
 Clone the repository into a directory called CoffeeBean:
