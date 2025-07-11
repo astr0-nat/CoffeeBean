@@ -14,10 +14,10 @@ CoffeeBean is scheduled as a cron job and it runs every day at 7:30 AM. Here is 
 
 From your terminal, connect via SSH:
 
-ssh webuser@172.233.142.247 -p 20202
+ssh user@your_up
 # Enter password when prompted.
 # Run the following wrapper script to execute CoffeeBean:
-/home/webuser/CoffeeBean/scripts/coffee_run.sh
+coffee_run.sh
 How to Set Up a New Machine to Run This Program
 Gather all the sensitive information from the secure shared folder.
 
